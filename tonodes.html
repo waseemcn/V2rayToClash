@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>VMless节点转换工具</title>
+	<script type="text/javascript" src="./js/sharedFunctions.js"></script>
+	<script type="text/javascript">
+		/**
+		 * 页面加载时把储存的Value放入文本中
+		 * **/
+		document.addEventListener("DOMContentLoaded", function() {
+			// 从本地存储获取值
+			const nodesValue = localStorage.getItem("nodes"),
+				ipsValue = localStorage.getItem("ips");
+
+			// 设置值到 <textarea>
+			const nodes = document.getElementById("nodes");
+			nodes.value = nodesValue;
+			const ips = document.getElementById("ips");
+			ips.value = ipsValue;
+		});
+	</script>
+</head>
+<body>
+	<label>VMess协议/节点：</label>
+	<textarea style="width: 100%; height: 200px;" id="nodes"></textarea>
+
+	<br /><br /><br />
+
+	<label>IP地址：</label>
+	<textarea style="width: 100%; height: 300px;" id="ips"></textarea>
+
+	<button style="width: 100%; height: 100px;" onclick="sub(event)">提交</button>
+
+	<br /><br /><br />
+
+	<label>生成后的节点（自动复制到了剪贴板）：</label>
+	<textarea style="width: 100%; height: 100px;" id="vips"></textarea>
+
+	<br /><br /><br />
+
+	<span id="duplicateIPs" style="white-space: pre-line;"></span>
+
+	<script type="text/javascript">
+		var timer;
+
+		function sub(event) {
+			const contentDom = document.getElementById("duplicateIPs");
+			
+			try {
+				const nodesDom = document.getElementById("nodes"),
+					ipsDom = document.getElementById("ips");
+				// console.log(nodesDom, ipsDom);
+				const nodes = nodesDom.value, ips = ipsDom.value;
+
+				/**
+				 * 解密Base64
+				 * **/
+				const parseVmessLinks = (links) => {
+				  const linkArr = links.split('\n');
+				  const result = [];
+
+				  for (const link of linkArr) {
+				    if (link.trim() === '') continue;
+				    let type = "vmess://";
+				    const an = link.replace(type, "");
+
+				    const decodedLink = atob(an);
+				    // const base64Encoded = btoa(decodedLink);
+				    // console.log(base64Encoded)
+				    const config = JSON.parse(decodedLink);
+				    config.myType = type
+				    result.push(config);
+				  }
+
+				  return result;
+				};
+
+				const parsedConfigs = parseVmessLinks(nodes);
+				console.log(parsedConfigs);
+
+
+				/**
+				 * IP地址去重与检查
+				 * **/
+				const ipss = ips.split("\n");
+				const regex = /^(?:\d{1,3}\.){3}\d{1,3}$/; // IPv4正则表达式
+				const uniqueIPs = new Set();
+
+				const duplicateIPs = [], invalidIPs = [];
+
+				for (const ip of ipss) {
+					const tip = ip.trim(); 
+					if (tip === '') continue;
+					if (regex.test(tip)) {
+						if (!uniqueIPs.has(tip)) {
+						  uniqueIPs.add(tip);
+						} else {
+						  duplicateIPs.push(tip);
+						}
+					} else {
+						// console.log("NO IPV4", ip);
+						invalidIPs.push(tip);
+					}
+				}
+				// console.log("去重的地址：", uniqueIPs);
+				// console.log("重复的地址：", duplicateIPs);
+
+				const aUniqueIPs = Array.from(uniqueIPs);
+				let diDomContent = "完成的地址：\n" + aUniqueIPs.join("\n") + "\n\n";
+				if(duplicateIPs.length)
+					diDomContent += "重复的地址：\n" + duplicateIPs.join("\n") + "\n\n";
+				if(invalidIPs.length)
+					diDomContent += "无效的地址：\n" + invalidIPs.join("\n");
+
+				contentDom.textContent = diDomContent;
+
+
+				/**
+				 * 批量生成节点
+				 * **/
+				let values = [];
+				for (const parsed of parsedConfigs) {
+					const type = parsed.myType;
+					delete parsed.myType;
+					for (const ip of aUniqueIPs) {
+						parsed.add = ip;
+						const base64Encoded = btoa(JSON.stringify(parsed));
+						values.push(type + base64Encoded);
+					}
+				}
+
+				const vipsDom = document.getElementById("vips");
+				const val = values.join("\n");
+				vipsDom.value = val;
+				
+				clearTimeout(timer);
+				toCopeText(val, (v)=>{
+					if(!v) return
+					event.target.innerText = "节点已成功复制到剪贴板";
+					event.target.disabled = true;
+					timer = setTimeout(()=>{
+						event.target.innerText = "提交";
+						event.target.disabled = false;
+					}, 2000);
+				});
+
+				localStorage.setItem("nodes", nodes);
+				localStorage.setItem("ips", ips);
+
+				console.log(event);
+
+			} catch (error) {
+				// 处理错误
+				if (error instanceof DOMException && error.name === 'InvalidCharacterError') {
+					contentDom.textContent = "发生错误：输入的节点没有正确进行编码";
+				} else {
+					// 其他异常
+				}
+				console.error("发生错误：", error);
+			}
+
+		}
+
+	</script>
+</body>
+</html>
+
+<!-- 
+
+
+1
+1
+2
+1
+1
+3
+
+9
+2
+2
+3
+
+
+
+
+
+
+
+
+16
+
+
+ -->

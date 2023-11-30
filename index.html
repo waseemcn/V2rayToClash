@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>VMless节点转换工具</title>
+	<style>
+        html, body {
+          margin: 0;
+          padding: 0;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        button {
+          flex: 0 0 auto;
+          padding: 10px;
+        }
+
+        #content {
+          flex: 1 1 auto;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        object {
+          width: 100%;
+          height: 100%;
+        }
+    </style>
+	<script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const contentLoader = loadContent();
+            // contentLoader.first(); // 默认执行第一个内容加载
+            contentLoader.second(); // 默认执行第二个内容加载
+        });
+        function loadContent() {
+            const contentDom = document.getElementById("content")
+            console.log(contentDom);
+
+            return {
+            	first: ()=>{
+            		contentDom.innerHTML = '<object type="text/html" data="./tonodes.html" width="100%" height="100%"></object>';
+            	},
+            	second: ()=>{
+            		contentDom.innerHTML = '<object type="text/html" data="./nodestoclash.html" width="100%" height="100%"></object>';
+            	}
+            }
+        }
+    </script>
+
+
+</head>
+<body>
+    <button onclick="loadContent().first()">加载第一个外部内容</button>
+    <button onclick="loadContent().second()">加载第二个外部内容</button>
+    <div id="content">
+        <!-- 这里可以显示初始内容 -->
+    </div>
+
+    <script type="text/javascript">
+		// Object.defineProperty()
+
+		// 生产模式
+		let isMode = 0;
+		// 开发模式
+		isMode = 1;
+
+		(function() {
+		    'use strict';
+		    var console_log = console.log;
+		    console.log = function () {
+		    	if(isMode)
+			    	return console_log(...arguments);
+			    else
+			    	return;
+		    }
+		})();
+    </script>
+</body>
+</html>
+
+<!-- 
+
+
+1
+1
+2
+1
+1
+3
+
+9
+2
+2
+3
+
+
+
+
+
+
+
+
+16
+
+
+ -->

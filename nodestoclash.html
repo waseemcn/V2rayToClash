@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="referrer" content="never">
+    <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>VMless节点转换工具</title>
+	<script type="text/javascript" src="./js/sharedFunctions.js"></script>
+	<script type="text/javascript">
+		/**
+		* 页面加载时把储存的Value放入文本中
+		**/
+		document.addEventListener("DOMContentLoaded", function() {
+			// 从本地存储获取值
+			const nodesValue = localStorage.getItem("nodes");
+			const ipsValue = localStorage.getItem("tonodes");
+
+			// 设置值到 <textarea>
+			const nodes = document.getElementById("nodes");
+			nodes.value = nodesValue;
+			const ips = document.getElementById("tonodes");
+			ips.value = ipsValue;
+		});
+	</script>
+</head>
+<body>
+	<label>VMess|ss协议/节点：</label>
+	<textarea style="width: 100%; height: 200px;" id="nodes"></textarea>
+
+	<br /><br /><br />
+
+	<label>V2&nbsp;To&nbsp;Clash（自动复制到了剪贴板）：</label>
+	<textarea style="width: 100%; height: 300px;" id="tonodes"></textarea>
+
+	<button style="width: 100%; height: 100px;" onclick="sub(event)">提交</button>
+
+	<script type="text/javascript" src="./js/axios.min.js"></script>
+	<script type="text/javascript" src="./js/js-yaml.min.js"></script>
+	<script type="text/javascript">
+		var timer;
+
+		function sub(event) {
+			try {
+				const nodesDom = document.getElementById("nodes"),
+					tonodesDom = document.getElementById("tonodes");
+				// console.log(nodesDom, ipsDom);
+				const nodes = nodesDom.value, tonodes = tonodesDom.value;
+
+				/**
+				 * 解密Base64
+				 * **/
+				// 节点全部名字 nodeNames
+				let nodeNames = [];
+				const parseVmessLinks = (links) => {
+				  const linkArr = links.split('\n');
+				  const result = [];
+
+				  for (const [index, link] of linkArr.entries()) {
+				    if (link.trim() === '') continue;
+				    let type = "vmess://";
+				    const [t, an] = link.split("://");
+				    if(t === "vmess") {
+					    type = t + '://';
+
+					    // const decodedLink = atob(an);
+					    const decodedLink = new TextDecoder("utf-8").decode(Uint8Array.from(atob(an), c => c.charCodeAt(0)));
+					    // const base64Encoded = btoa(decodedLink);
+					    // console.log(base64Encoded)
+					    const config = JSON.parse(decodedLink);
+					    config.ps += "_" + index;
+					    nodeNames.push(config.ps);
+					    config.myType = type;
+					    console.log(config);
+						const toClash = nodeV2ToClash(config);
+					    result.push(toClash);
+
+				    }else if(t === "ss") {
+						// 对链接部分进行 URL 解码
+						const decodedLink = decodeURIComponent(an);
+
+						// 分割解码后的字符串
+						const parts = decodedLink.split("@");
+
+						// 获取服务器信息部分
+						const serverInfo = parts[1];
+
+						// 分割服务器信息部分
+						const serverParts = serverInfo.split(":");
+
+						const decodedBase64 = new TextDecoder("utf-8").decode(Uint8Array.from(atob(parts[0]), c => c.charCodeAt(0)));
+						const decodedPass = decodedBase64.split(":");
+						// 获取密码和地址信息
+						const cipher = decodedPass[0];
+						const password = decodedPass[1];
+						const server = serverParts[0];
+						const port = parseInt(serverParts[1]);
+
+
+						// 构建 JSON 对象
+						const json = {
+						    "name": decodeURIComponent(link.split("#")[1]) + "_" + index, // 解码并获取名称部分
+						    "type": t,
+						    "server": server,
+						    "port": port,
+						    "password": password,
+						    "cipher": cipher
+						};
+
+					    nodeNames.push(json.name);
+					    result.push(json);
+
+				    }
+				  }
+
+				  return result;
+				};
+
+				const parsedConfigs = parseVmessLinks(nodes);
+				console.log(parsedConfigs, nodeNames);
+
+
+				/**
+				 * 获取模板
+				 * **/ 
+				axios.get('./template/V2RaySE.yaml').then(response => {
+					try {
+					  // 解析YAML数据
+					  const data = jsyaml.load(response.data);
+
+					  // 处理解析后的数据
+					  // console.log(data);
+					  return data;
+					} catch (error) {
+					  console.error('解析YAML出错:', error);
+					}
+				}).catch(error => {
+					console.error('请求出错:', error);
+				}).then((data) => {
+					data.proxies = parsedConfigs;
+					proxy_groups = data['proxy-groups'];
+					let arrpg = ['🚀 节点选择', '♻️ 自动选择', '🌍 国外媒体', '📲 电报信息', 'Ⓜ️ 微软服务', '🍎 苹果服务', '🐟 漏网之鱼'];
+					for (var i = 0; i < proxy_groups.length; i++) {
+						const pg_name = proxy_groups[i].name;
+						if(arrpg.includes(pg_name)){
+							if(proxy_groups[i].proxies)
+								proxy_groups[i].proxies.push(...nodeNames);
+							else
+								proxy_groups[i].proxies = nodeNames
+						}
+
+					}
+
+					console.log(data);
+					return data;
+				}).then((data)=> {
+					const yamlData = jsyaml.dump(data);
+					// console.log(yamlData);
+					tonodesDom.value = yamlData;
+
+					clearTimeout(timer);
+					toCopeText(yamlData, (v)=>{
+						if(!v) return
+						event.target.innerText = "节点已成功复制到剪贴板";
+						event.target.disabled = true;
+						timer = setTimeout(()=>{
+							event.target.innerText = "提交";
+							event.target.disabled = false;
+						}, 2000);
+					});
+				});
+				
+				// axios.get('./template/SSRDog.yaml').then(response => {
+				// 	try {
+				// 	  // 解析YAML数据
+				// 	  const data = jsyaml.load(response.data);
+
+				// 	  // 处理解析后的数据
+				// 	  // console.log(data);
+				// 	  return data;
+				// 	} catch (error) {
+				// 	  console.error('解析YAML出错:', error);
+				// 	}
+				// }).catch(error => {
+				// 	console.error('请求出错:', error);
+				// }).then((data) => {
+				// 	data.proxies = parsedConfigs;
+				// 	proxy_groups = data['proxy-groups'];
+				// 	for (var i = 0; i < proxy_groups.length; i++) {
+				// 		const pg_name = proxy_groups[i].name;
+				// 		if(proxy_groups[i].proxies)
+				// 			proxy_groups[i].proxies.push(...nodeNames);
+				// 		else
+				// 			proxy_groups[i].proxies = nodeNames
+
+				// 	}
+
+				// 	console.log(data);
+				// 	return data;
+				// }).then((data)=> {
+				// 	const yamlData = jsyaml.dump(data);
+				// 	// console.log(yamlData);
+				// 	tonodesDom.value = yamlData;
+
+				// 	clearTimeout(timer);
+				// 	toCopeText(yamlData, (v)=>{
+				// 		if(!v) return
+				// 		event.target.innerText = "节点已成功复制到剪贴板";
+				// 		event.target.disabled = true;
+				// 		timer = setTimeout(()=>{
+				// 			event.target.innerText = "提交";
+				// 			event.target.disabled = false;
+				// 		}, 2000);
+				// 	});
+				// });
+
+				localStorage.setItem("nodes", nodes);
+				localStorage.setItem("tonodes", tonodes);
+
+			} catch (error) {
+				// 处理错误
+				if (error instanceof DOMException && error.name === 'InvalidCharacterError') {
+					contentDom.textContent = "发生错误：输入的节点没有正确进行编码";
+				} else {
+					// 其他异常
+				}
+				console.error("发生错误：", error);
+			}
+
+		}
+
+
+		// V2ToClash节点
+		function nodeV2ToClash(originalData) {
+
+			// console.log(originalData);
+			
+			const tls = originalData.tls;
+			const sni = originalData.sni;
+			// originalData.type || originalData.net
+			let network = originalData.net;
+		    var newData = {
+		        // "name": decodeURIComponent(originalData.ps),
+		        "type": "", // 移除末尾的 "://"
+		        "name": originalData.ps,
+		        "server": originalData.add,
+		        "port": parseInt(originalData.port),
+		        "uuid": originalData.id,
+		        "alterId": parseInt(originalData.aid),
+		        "cipher": originalData.scy,
+		        // 跳过证书目前没有获取到 有bug，开启了tls必须位false
+		        "skip-cert-verify": false,
+		        "network": network
+		    };
+		    if (network === 'ws') {
+				newData["ws-opts"] = {
+					"path": originalData.path,
+					"headers": {
+						"Host": originalData.host
+					}
+				};
+			} else if(network === 'http'){
+				newData["http-opts"] = {
+					"path": [originalData.path],
+					"headers": {
+						"Host": [originalData.host]
+					}
+				};
+			}
+		    if(tls !== "none"){
+		    	newData["tls"] = true;
+		    }
+		    if(sni){
+		    console.log(sni);
+		    	newData["servername"] = sni;
+		    }
+
+		    if (originalData.myType) {
+		    	newData.type = originalData.myType.substr(0, originalData.myType.length - 3);
+		    }
+
+
+		    return newData;
+		}
+
+	</script>
+</body>
+</html>
